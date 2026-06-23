@@ -18,11 +18,11 @@ func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRe
 	}
 	defer db.Close()
 
-	// Get first day of current month
+	// Get first day of current month as a string for MS Access
 	now := time.Now()
-	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	firstOfMonthStr := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
 
-	query := `
+	query := fmt.Sprintf(`
 		SELECT TOP 500
 			a.attendanceLogId, 
 			e.EmployeeCode, 
@@ -35,11 +35,11 @@ func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRe
 		FROM AttendanceLogs a
 		INNER JOIN Employees e ON a.EmployeeId = e.EmployeeId
 		WHERE a.attendanceLogId > ? 
-		  AND a.AttendanceDate >= ?
+		  AND a.AttendanceDate >= #%s#
 		ORDER BY a.attendanceLogId ASC
-	`
+	`, firstOfMonthStr)
 
-	rows, err := db.Query(query, lastId, firstOfMonth)
+	rows, err := db.Query(query, lastId)
 	if err != nil {
 		return nil, 0, err
 	}
