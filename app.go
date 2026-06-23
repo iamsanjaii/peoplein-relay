@@ -143,7 +143,7 @@ func (a *App) performSync(cfg *Config, state *State) {
 	}
 
 	state.LastAttendanceLogId = newMaxId
-	state.LastSyncAt = time.Now()
+	state.LastSyncAt = time.Now().Format(time.RFC3339)
 	
 	_ = SaveState(state)
 }

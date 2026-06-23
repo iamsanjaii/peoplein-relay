@@ -18,8 +18,8 @@ type Config struct {
 
 // State represents the state.json structure
 type State struct {
-	LastAttendanceLogId int       `json:"lastAttendanceLogId"`
-	LastSyncAt          time.Time `json:"lastSyncAt"`
+	LastAttendanceLogId int    `json:"lastAttendanceLogId"`
+	LastSyncAt          string `json:"lastSyncAt"`
 }
 
 var (
