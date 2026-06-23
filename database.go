@@ -9,6 +9,17 @@ import (
 	_ "github.com/alexbrainman/odbc"
 )
 
+// RelayAttendanceRecord represents the payload to send to the backend
+type RelayAttendanceRecord struct {
+	EmployeeCode     string  `json:"employeeCode"`
+	AttendanceDate   string  `json:"attendanceDate"`
+	CheckIn          *string `json:"checkIn"`
+	CheckOut         *string `json:"checkOut"`
+	WorkedMinutes    int     `json:"workedMinutes"`
+	LateMinutes      int     `json:"lateMinutes"`
+	EarlyExitMinutes int     `json:"earlyExitMinutes"`
+}
+
 // FetchIncrementalAttendance connects to the MDB and fetches new attendance records
 func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRecord, int, error) {
 	connStr := fmt.Sprintf("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=%s;", mdbPath)
@@ -17,6 +28,10 @@ func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRe
 		return nil, 0, err
 	}
 	defer db.Close()
+
+	// Get first day of current month
+	now := time.Now()
+	firstOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 
 	query := `
 		SELECT TOP 500
@@ -30,11 +45,12 @@ func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRe
 			a.EarlyBy
 		FROM AttendanceLogs a
 		INNER JOIN Employees e ON a.EmployeeId = e.EmployeeId
-		WHERE a.attendanceLogId > ?
+		WHERE a.attendanceLogId > ? 
+		  AND a.AttendanceDate >= ?
 		ORDER BY a.attendanceLogId ASC
 	`
 
-	rows, err := db.Query(query, lastId)
+	rows, err := db.Query(query, lastId, firstOfMonth)
 	if err != nil {
 		return nil, 0, err
 	}
