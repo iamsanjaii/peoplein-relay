@@ -49,6 +49,32 @@ def send_heartbeat():
         # Run every 60 seconds
         time.sleep(60)
 
+def test_database():
+    try:
+        conn_str = f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={MDB_PATH};"
+        conn = pyodbc.connect(conn_str)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM Employees")
+        emp_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM AttendanceLogs")
+        att_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT TOP 1 AttendanceDate FROM AttendanceLogs ORDER BY attendanceLogId DESC")
+        latest_date_row = cursor.fetchone()
+        latest_date = latest_date_row[0] if latest_date_row else "No records"
+        
+        print(f"--- DB DIAGNOSTICS ---")
+        print(f"Total Employees: {emp_count}")
+        print(f"Total Logs: {att_count}")
+        print(f"Latest Date in DB: {latest_date}")
+        print(f"----------------------")
+        
+        conn.close()
+    except Exception as e:
+        print(f"DB Diagnostic Error: {e}")
+
 def sync_attendance():
     while True:
         try:
@@ -146,6 +172,8 @@ if __name__ == "__main__":
     print("=========================================")
     print(" PeopleIN Relay - Headless Python Script")
     print("=========================================")
+    
+    test_database()
     
     # Start heartbeat thread
     heartbeat_thread = threading.Thread(target=send_heartbeat, daemon=True)
