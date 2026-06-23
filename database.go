@@ -19,7 +19,7 @@ func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRe
 	defer db.Close()
 
 	query := `
-		SELECT 
+		SELECT TOP 500
 			a.attendanceLogId, 
 			e.EmployeeCode, 
 			a.AttendanceDate, 

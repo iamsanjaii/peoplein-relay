@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/alexbrainman/odbc"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -23,6 +24,22 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+func (a *App) emitLog(msg string) {
+	log.Println(msg)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "log-update", msg)
+	}
+}
+
+func (a *App) emitSyncUpdate(count int, errStr string) {
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "sync-update", map[string]interface{}{
+			"count": count,
+			"error": errStr,
+		})
+	}
 }
 
 // GetConfig returns the current configuration
@@ -106,6 +123,21 @@ func (a *App) StartSync() error {
 		a.ticker.Stop()
 	}
 
+	// Start Continuous Heartbeat (Every 1 minute)
+	go func() {
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
+		defer heartbeatTicker.Stop()
+		for {
+			err := SendHeartbeat(cfg.APIUrl, cfg.APIKey, cfg.MachineName)
+			if err != nil {
+				a.emitLog(fmt.Sprintf("Heartbeat failed: %v", err))
+			} else {
+				a.emitLog("Heartbeat sent successfully")
+			}
+			<-heartbeatTicker.C
+		}
+	}()
+
 	interval := time.Duration(cfg.SyncIntervalMinutes) * time.Minute
 	a.ticker = time.NewTicker(interval)
 
@@ -124,21 +156,27 @@ func (a *App) StartSync() error {
 }
 
 func (a *App) performSync(cfg *Config, state *State) {
-	log.Printf("Starting incremental sync from Log ID: %d", state.LastAttendanceLogId)
+	a.emitLog(fmt.Sprintf("Starting incremental sync from Log ID: %d", state.LastAttendanceLogId))
 	
 	records, newMaxId, err := FetchIncrementalAttendance(cfg.MDBPath, state.LastAttendanceLogId)
 	if err != nil {
-		log.Printf("Database read error: %v", err)
+		a.emitLog(fmt.Sprintf("Database read error: %v", err))
+		a.emitSyncUpdate(0, err.Error())
 		return
 	}
 
 	if len(records) == 0 {
+		a.emitLog("No new records to sync.")
+		a.emitSyncUpdate(0, "")
 		return
 	}
 
+	a.emitLog(fmt.Sprintf("Fetched %d records. Syncing to PeopleIN...", len(records)))
+
 	err = SendAttendanceSync(cfg.APIUrl, cfg.APIKey, records)
 	if err != nil {
-		log.Printf("Failed to sync to PeopleIN API: %v", err)
+		a.emitLog(fmt.Sprintf("Failed to sync to PeopleIN API: %v", err))
+		a.emitSyncUpdate(0, err.Error())
 		return
 	}
 
@@ -146,4 +184,7 @@ func (a *App) performSync(cfg *Config, state *State) {
 	state.LastSyncAt = time.Now().Format(time.RFC3339)
 	
 	_ = SaveState(state)
+	
+	a.emitLog(fmt.Sprintf("Successfully synced %d records. New Log ID: %d", len(records), newMaxId))
+	a.emitSyncUpdate(len(records), "")
 }
