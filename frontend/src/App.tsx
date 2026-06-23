@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 // @ts-ignore
-import { TestDatabase, TestAPI, SaveConfig, StartSync, GetConfig } from "../wailsjs/go/main/App";
+import { TestDatabase, TestAPI, SaveConfig, StartSync, GetConfig, QuitRelay } from "../wailsjs/go/main/App";
 // @ts-ignore
 import { EventsOn } from "../wailsjs/runtime/runtime";
 
@@ -265,9 +265,17 @@ export default function App() {
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t-2 border-slate-900">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Version 1.0.0</span>
-                  <button onClick={() => setStep(1)} className="text-xs font-bold hover:underline uppercase text-slate-500">
-                    Reconfigure
+                  <div className="flex gap-4 items-center">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Version 1.0.0</span>
+                    <button onClick={() => setStep(1)} className="text-xs font-bold hover:underline uppercase text-slate-500">
+                      Reconfigure
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => QuitRelay()} 
+                    className="text-xs font-bold uppercase text-white bg-red-600 hover:bg-red-700 px-4 py-2 border-2 border-red-900 transition-colors"
+                  >
+                    Shutdown Relay
                   </button>
                 </div>
               </div>

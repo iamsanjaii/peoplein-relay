@@ -42,6 +42,13 @@ func (a *App) emitSyncUpdate(count int, errStr string) {
 	}
 }
 
+// QuitRelay shuts down the application
+func (a *App) QuitRelay() {
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}
+
 // GetConfig returns the current configuration
 func (a *App) GetConfig() (*Config, error) {
 	return LoadConfig()

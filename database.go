@@ -9,17 +9,6 @@ import (
 	_ "github.com/alexbrainman/odbc"
 )
 
-// RelayAttendanceRecord represents the payload to send to the backend
-type RelayAttendanceRecord struct {
-	EmployeeCode     string  `json:"employeeCode"`
-	AttendanceDate   string  `json:"attendanceDate"`
-	CheckIn          *string `json:"checkIn"`
-	CheckOut         *string `json:"checkOut"`
-	WorkedMinutes    int     `json:"workedMinutes"`
-	LateMinutes      int     `json:"lateMinutes"`
-	EarlyExitMinutes int     `json:"earlyExitMinutes"`
-}
-
 // FetchIncrementalAttendance connects to the MDB and fetches new attendance records
 func FetchIncrementalAttendance(mdbPath string, lastId int) ([]RelayAttendanceRecord, int, error) {
 	connStr := fmt.Sprintf("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=%s;", mdbPath)
