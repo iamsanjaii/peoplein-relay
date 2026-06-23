@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-// @ts-ignore
-import { TestDatabase, TestAPI, SaveConfig, StartSync, GetConfig, QuitRelay } from "../wailsjs/go/main/App";
-// @ts-ignore
-import { EventsOn } from "../wailsjs/runtime/runtime";
 
 export default function App() {
   const [step, setStep] = useState(1);
   const [apiKey, setApiKey] = useState('');
-  const [apiUrl, setApiUrl] = useState('https://api.peoplein.com');
+  const [apiUrl, setApiUrl] = useState('https://apiclients.captlnpeople.com');
   const [mdbPath, setMdbPath] = useState('C:\\Program Files (x86)\\eSSL\\eTimeTrackLite\\eTimeTrackLite1.mdb');
   const [machineName, setMachineName] = useState('Relay-1');
   
@@ -21,31 +17,39 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // Wails runtime bindings injected via window object
+  const AppBindings = (window as any).go?.main?.App || {};
+  const RuntimeBindings = (window as any).runtime || {};
+
   useEffect(() => {
-    GetConfig().then((cfg: any) => {
-      if (cfg && cfg.apiKey) {
-        setApiKey(cfg.apiKey);
-        setApiUrl(cfg.apiUrl);
-        setMdbPath(cfg.mdbPath);
-        setMachineName(cfg.machineName);
-        setStep(5);
-      }
-    }).catch(() => {});
+    if (AppBindings.GetConfig) {
+      AppBindings.GetConfig().then((cfg: any) => {
+        if (cfg && cfg.apiKey) {
+          setApiKey(cfg.apiKey);
+          setApiUrl(cfg.apiUrl);
+          setMdbPath(cfg.mdbPath);
+          setMachineName(cfg.machineName);
+          setStep(5);
+        }
+      }).catch(() => {});
+    }
 
     // Listen for real-time logs from Go
-    EventsOn("log-update", (msg: string) => {
-      setLogs(prev => {
-        const newLogs = [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`];
-        if (newLogs.length > 100) return newLogs.slice(newLogs.length - 100);
-        return newLogs;
+    if (RuntimeBindings.EventsOn) {
+      RuntimeBindings.EventsOn("log-update", (msg: string) => {
+        setLogs(prev => {
+          const newLogs = [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`];
+          if (newLogs.length > 100) return newLogs.slice(newLogs.length - 100);
+          return newLogs;
+        });
       });
-    });
 
-    EventsOn("sync-update", (data: any) => {
-      if (data.error) {
-        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: ${data.error}`]);
-      }
-    });
+      RuntimeBindings.EventsOn("sync-update", (data: any) => {
+        if (data.error) {
+          setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: ${data.error}`]);
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -55,7 +59,9 @@ export default function App() {
   const handleTestApi = async () => {
     setApiTesting(true);
     try {
-      await TestAPI(apiUrl, apiKey, machineName);
+      if (AppBindings.TestAPI) {
+        await AppBindings.TestAPI(apiUrl, apiKey, machineName);
+      }
       setApiSuccess(true);
     } catch (err) {
       setApiSuccess(false);
@@ -66,8 +72,10 @@ export default function App() {
   const handleTestDb = async () => {
     setDbTesting(true);
     try {
-      const result = await TestDatabase(mdbPath);
-      setDbSuccess(result);
+      if (AppBindings.TestDatabase) {
+        const result = await AppBindings.TestDatabase(mdbPath);
+        setDbSuccess(result);
+      }
     } catch (err) {
       setDbSuccess(false);
     }
@@ -76,8 +84,10 @@ export default function App() {
 
   const handleStartSync = async () => {
     try {
-      await SaveConfig({ apiKey, apiUrl, mdbPath, machineName, syncIntervalMinutes: 5 });
-      await StartSync();
+      if (AppBindings.SaveConfig && AppBindings.StartSync) {
+        await AppBindings.SaveConfig({ apiKey, apiUrl, mdbPath, machineName, syncIntervalMinutes: 5 });
+        await AppBindings.StartSync();
+      }
       setIsSyncing(true);
       setStep(5);
     } catch (err) {
@@ -235,7 +245,7 @@ export default function App() {
                       <h3 className="text-xs font-bold uppercase text-slate-500 mb-1">Status</h3>
                       <p className="font-mono text-sm">{isSyncing ? 'Running' : 'Idle'}</p>
                     </div>
-                    <button onClick={() => StartSync()} className="bg-slate-100 hover:bg-slate-200 text-xs font-bold uppercase px-3 py-1 border-2 border-slate-900 transition-colors">
+                    <button onClick={() => AppBindings.StartSync && AppBindings.StartSync()} className="bg-slate-100 hover:bg-slate-200 text-xs font-bold uppercase px-3 py-1 border-2 border-slate-900 transition-colors">
                       Force Sync
                     </button>
                   </div>
@@ -272,7 +282,7 @@ export default function App() {
                     </button>
                   </div>
                   <button 
-                    onClick={() => QuitRelay()} 
+                    onClick={() => AppBindings.QuitRelay && AppBindings.QuitRelay()} 
                     className="text-xs font-bold uppercase text-white bg-red-600 hover:bg-red-700 px-4 py-2 border-2 border-red-900 transition-colors"
                   >
                     Shutdown Relay
