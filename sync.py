@@ -86,7 +86,7 @@ def sync_attendance():
 
             # Remove flaky MS Access date filter, we will filter in Python
             query = f"""
-                SELECT TOP 500
+                SELECT TOP 100
                     a.attendanceLogId, 
                     e.EmployeeCode, 
                     a.AttendanceDate, 
@@ -174,9 +174,9 @@ def sync_attendance():
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] Fast-forwarding {len(rows)} old records (ID: {last_id} -> {new_max_id})...")
                     state["lastAttendanceLogId"] = new_max_id
                     save_state(state)
-                    continue # IMMEDIATELY fetch the next 500 without waiting 5 minutes!
+                    continue # IMMEDIATELY fetch the next 100 without waiting 5 minutes!
                 else:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Found {len(records_payload)} records from this month. Syncing to API...")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Found {len(records_payload)} records from this month. Syncing to API... (this may take a minute)")
 
                     url = f"{API_URL}/api/v1/relay/attendance/sync"
                     headers = {
@@ -184,7 +184,8 @@ def sync_attendance():
                         "Content-Type": "application/json"
                     }
                     
-                    response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=30)
+                    # Increased timeout to 300s to allow backend to process slow DB queries
+                    response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=300)
                     
                     if response.status_code in [200, 201]:
                         synced_emps = list(set([r["employeeCode"] for r in records_payload if r["employeeCode"]]))
