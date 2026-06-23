@@ -9,7 +9,7 @@ import threading
 # --- CONFIGURATION ---
 # IMPORTANT: Update these values to match your Windows laptop!
 API_URL = "https://apiclients.captlnpeople.com"
-API_KEY = ""
+API_KEY = "pi_live_ePKMf5HP0BP2tcO6zE4SIFqzGT7Ey5Hy"
 MACHINE_NAME = "Relay-Python-1"
 MDB_PATH = r"C:\Program Files (x86)\eSSL\eTimeTrackLite\eTimeTrackLite1.mdb"
 SYNC_INTERVAL_MINUTES = 5
@@ -151,11 +151,8 @@ def sync_attendance():
                         continue # Skip records older than this month
                     
                     att_date = dt_att.strftime("%Y-%m-%d") if dt_att else ""
-                    
-                    # Ensure we append the correct IST timezone offset instead of Z (UTC) 
-                    # so the backend doesn't accidentally shift times by 5.5 hours!
-                    in_time = dt_in.strftime("%Y-%m-%dT%H:%M:%S+05:30") if dt_in else None
-                    out_time = dt_out.strftime("%Y-%m-%dT%H:%M:%S+05:30") if dt_out else None
+                    in_time = dt_in.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_in else None
+                    out_time = dt_out.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_out else None
                     
                     duration = int(row[5]) if row[5] is not None else 0
                     late_by = int(row[6]) if row[6] is not None else 0
