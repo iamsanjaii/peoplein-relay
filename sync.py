@@ -86,9 +86,7 @@ def sync_attendance():
             conn = pyodbc.connect(conn_str)
             cursor = conn.cursor()
 
-            first_of_month_str = datetime.now().strftime("%Y-%m-01")
-            
-            # Using MS Access specific date literal syntax #YYYY-MM-DD#
+            # Remove flaky MS Access date filter, we will filter in Python
             query = f"""
                 SELECT TOP 500
                     a.attendanceLogId, 
@@ -102,7 +100,6 @@ def sync_attendance():
                 FROM AttendanceLogs a
                 INNER JOIN Employees e ON a.EmployeeId = e.EmployeeId
                 WHERE a.attendanceLogId > ? 
-                  AND a.AttendanceDate >= #{first_of_month_str}#
                 ORDER BY a.attendanceLogId ASC
             """
 
@@ -120,10 +117,40 @@ def sync_attendance():
                     log_id = row[0]
                     emp_code = str(row[1]) if row[1] is not None else ""
                     
-                    # Parse dates safely
-                    att_date = row[2].strftime("%Y-%m-%d") if row[2] else ""
-                    in_time = row[3].strftime("%Y-%m-%dT%H:%M:%S") + "Z" if row[3] else None
-                    out_time = row[4].strftime("%Y-%m-%dT%H:%M:%S") + "Z" if row[4] else None
+                    if log_id > new_max_id:
+                        new_max_id = log_id
+
+                    # Smart parser that tries all common formats
+                    def parse_datetime_smart(val):
+                        if not val: return None
+                        if hasattr(val, 'strftime'): return val
+                        
+                        s = str(val).strip()
+                        formats = [
+                            "%Y-%m-%d %H:%M:%S", "%Y-%m-%d",
+                            "%d/%m/%Y %H:%M:%S", "%d/%m/%Y",
+                            "%m/%d/%Y %H:%M:%S", "%m/%d/%Y",
+                            "%d-%m-%Y %H:%M:%S", "%d-%m-%Y"
+                        ]
+                        for fmt in formats:
+                            try:
+                                return datetime.strptime(s, fmt)
+                            except ValueError:
+                                pass
+                        return None
+
+                    dt_att = parse_datetime_smart(row[2])
+                    dt_in = parse_datetime_smart(row[3])
+                    dt_out = parse_datetime_smart(row[4])
+                    
+                    # Filter out old records in Python!
+                    first_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    if dt_att and dt_att < first_of_month:
+                        continue # Skip records older than this month
+                    
+                    att_date = dt_att.strftime("%Y-%m-%d") if dt_att else ""
+                    in_time = dt_in.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_in else None
+                    out_time = dt_out.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_out else None
                     
                     duration = int(row[5]) if row[5] is not None else 0
                     late_by = int(row[6]) if row[6] is not None else 0
@@ -144,22 +171,27 @@ def sync_attendance():
 
                 conn.close()
 
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Fetched {len(records_payload)} records. Syncing to API...")
-
-                url = f"{API_URL}/api/v1/relay/attendance/sync"
-                headers = {
-                    "X-API-Key": API_KEY,
-                    "Content-Type": "application/json"
-                }
-                
-                response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=30)
-                
-                if response.status_code in [200, 201]:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Successfully synced {len(records_payload)} records. New Log ID: {new_max_id}")
+                if len(records_payload) == 0:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Checked 500 records, but none matched this month. Advancing Log ID to {new_max_id}...")
                     state["lastAttendanceLogId"] = new_max_id
                     save_state(state)
                 else:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] API Sync Failed: {response.status_code} - {response.text}")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Fetched {len(records_payload)} records matching this month. Syncing to API...")
+
+                    url = f"{API_URL}/api/v1/relay/attendance/sync"
+                    headers = {
+                        "X-API-Key": API_KEY,
+                        "Content-Type": "application/json"
+                    }
+                    
+                    response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=30)
+                    
+                    if response.status_code in [200, 201]:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Successfully synced {len(records_payload)} records. New Log ID: {new_max_id}")
+                        state["lastAttendanceLogId"] = new_max_id
+                        save_state(state)
+                    else:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] API Sync Failed: {response.status_code} - {response.text}")
 
         except Exception as e:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync error: {e}")
