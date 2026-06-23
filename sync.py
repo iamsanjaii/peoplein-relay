@@ -14,7 +14,8 @@ MACHINE_NAME = "Relay-Python-1"
 MDB_PATH = r"C:\Program Files (x86)\eSSL\eTimeTrackLite\eTimeTrackLite1.mdb"
 SYNC_INTERVAL_MINUTES = 5
 
-STATE_FILE = "state.json"
+# Save state securely in the user's home directory to avoid Windows Permission errors
+STATE_FILE = os.path.join(os.path.expanduser("~"), "peoplein_relay_state.json")
 
 def load_state():
     if os.path.exists(STATE_FILE):
