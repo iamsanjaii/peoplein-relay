@@ -141,6 +141,10 @@ def sync_attendance():
                     dt_in = parse_datetime_smart(row[3])
                     dt_out = parse_datetime_smart(row[4])
                     
+                    # Scrub MS Access weird 1900-01-01 default dates for missing punches
+                    if dt_in and dt_in.year <= 1900: dt_in = None
+                    if dt_out and dt_out.year <= 1900: dt_out = None
+                    
                     # Filter out old records in Python!
                     first_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                     if dt_att and dt_att < first_of_month:
@@ -183,7 +187,12 @@ def sync_attendance():
                     response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=30)
                     
                     if response.status_code in [200, 201]:
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] API Sync Success! Log ID updated to {new_max_id}")
+                        synced_emps = list(set([r["employeeCode"] for r in records_payload if r["employeeCode"]]))
+                        emp_str = ", ".join(synced_emps[:20])
+                        if len(synced_emps) > 20:
+                            emp_str += f" (+{len(synced_emps)-20} more)"
+                            
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] API Sync Success! Synced {len(records_payload)} logs for Employees: [{emp_str}]")
                         state["lastAttendanceLogId"] = new_max_id
                         save_state(state)
                     else:
