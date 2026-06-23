@@ -151,8 +151,11 @@ def sync_attendance():
                         continue # Skip records older than this month
                     
                     att_date = dt_att.strftime("%Y-%m-%d") if dt_att else ""
-                    in_time = dt_in.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_in else None
-                    out_time = dt_out.strftime("%Y-%m-%dT%H:%M:%S") + "Z" if dt_out else None
+                    
+                    # Ensure we append the correct IST timezone offset instead of Z (UTC) 
+                    # so the backend doesn't accidentally shift times by 5.5 hours!
+                    in_time = dt_in.strftime("%Y-%m-%dT%H:%M:%S+05:30") if dt_in else None
+                    out_time = dt_out.strftime("%Y-%m-%dT%H:%M:%S+05:30") if dt_out else None
                     
                     duration = int(row[5]) if row[5] is not None else 0
                     late_by = int(row[6]) if row[6] is not None else 0
