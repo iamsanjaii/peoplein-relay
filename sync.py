@@ -9,7 +9,7 @@ import threading
 # --- CONFIGURATION ---
 # IMPORTANT: Update these values to match your Windows laptop!
 API_URL = "https://apiclients.captlnpeople.com"
-API_KEY = "YOUR_API_KEY_HERE"
+API_KEY = ""
 MACHINE_NAME = "Relay-Python-1"
 MDB_PATH = r"C:\Program Files (x86)\eSSL\eTimeTrackLite\eTimeTrackLite1.mdb"
 SYNC_INTERVAL_MINUTES = 5
@@ -40,9 +40,7 @@ def send_heartbeat():
             }
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             if response.status_code in [200, 201]:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Heartbeat sent successfully.")
-            else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Heartbeat failed: {response.text}")
+                pass # Silent heartbeat on success so we don't spam terminal
         except Exception as e:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Heartbeat error: {e}")
         
@@ -69,7 +67,7 @@ def test_database():
         print(f"Total Employees: {emp_count}")
         print(f"Total Logs: {att_count}")
         print(f"Latest Date in DB: {latest_date}")
-        print(f"----------------------")
+        print(f"----------------------\n")
         
         conn.close()
     except Exception as e:
@@ -80,7 +78,6 @@ def sync_attendance():
         try:
             state = load_state()
             last_id = state["lastAttendanceLogId"]
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting sync from Log ID: {last_id}")
 
             conn_str = f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={MDB_PATH};"
             conn = pyodbc.connect(conn_str)
@@ -107,7 +104,7 @@ def sync_attendance():
             rows = cursor.fetchall()
 
             if not rows:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] No new records to sync.")
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Fully synced! Waiting 5 minutes...")
                 conn.close()
             else:
                 records_payload = []
@@ -156,9 +153,6 @@ def sync_attendance():
                     late_by = int(row[6]) if row[6] is not None else 0
                     early_by = int(row[7]) if row[7] is not None else 0
 
-                    if log_id > new_max_id:
-                        new_max_id = log_id
-
                     records_payload.append({
                         "employeeCode": emp_code,
                         "attendanceDate": att_date,
@@ -172,11 +166,12 @@ def sync_attendance():
                 conn.close()
 
                 if len(records_payload) == 0:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Checked 500 records, but none matched this month. Advancing Log ID to {new_max_id}...")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Fast-forwarding {len(rows)} old records (ID: {last_id} -> {new_max_id})...")
                     state["lastAttendanceLogId"] = new_max_id
                     save_state(state)
+                    continue # IMMEDIATELY fetch the next 500 without waiting 5 minutes!
                 else:
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Fetched {len(records_payload)} records matching this month. Syncing to API...")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Found {len(records_payload)} records from this month. Syncing to API...")
 
                     url = f"{API_URL}/api/v1/relay/attendance/sync"
                     headers = {
@@ -187,7 +182,7 @@ def sync_attendance():
                     response = requests.post(url, json={"records": records_payload}, headers=headers, timeout=30)
                     
                     if response.status_code in [200, 201]:
-                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Successfully synced {len(records_payload)} records. New Log ID: {new_max_id}")
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] API Sync Success! Log ID updated to {new_max_id}")
                         state["lastAttendanceLogId"] = new_max_id
                         save_state(state)
                     else:
@@ -196,7 +191,7 @@ def sync_attendance():
         except Exception as e:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync error: {e}")
 
-        # Sleep for the configured interval
+        # Sleep for the configured interval only if we didn't fast-forward
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Sleeping for {SYNC_INTERVAL_MINUTES} minutes...")
         time.sleep(SYNC_INTERVAL_MINUTES * 60)
 
